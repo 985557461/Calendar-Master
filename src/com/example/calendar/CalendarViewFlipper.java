@@ -9,31 +9,29 @@ import android.view.*;
 import android.view.animation.AnimationUtils;
 import android.widget.*;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * Created by Administrator on 2016/7/5.
  */
 public class CalendarViewFlipper extends FrameLayout implements View.OnClickListener{
-    private GestureDetector gestureDetector = null;
-    private CalendarAdapter calV = null;
-    private ViewFlipper flipper = null;
-    private GridView gridView = null;
+    private GestureDetector gestureDetector;
+    private CalendarAdapter calV;
+    private ViewFlipper flipper;
+    private GridView gridView;
     private static int jumpMonth = 0; // 每次滑动，增加或减去一个月,默认为0（即显示当前月）
-    private static int jumpYear = 0; // 滑动跨越一年，则增加或者减去一年,默认为0(即当前年)
     private int year_c = 0;
     private int month_c = 0;
     private int day_c = 0;
-    private String currentDate = "";
-    /** 每次添加gridview到viewflipper中时给的标记 */
-    private int gvFlag = 0;
     /** 当前的年月，现在日历顶端 */
     private TextView currentMonth;
     /** 上个月 */
     private ImageView prevMonth;
     /** 下个月 */
     private ImageView nextMonth;
+    /**每个月标记的行程,key是月份，value是当前月份中的日期，如key=2（二月），value=list{2,6,9,12,24}**/
+    private HashMap<String,List<String>> map;
 
     public CalendarViewFlipper(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -58,16 +56,18 @@ public class CalendarViewFlipper extends FrameLayout implements View.OnClickList
         setListener();
     }
 
-    //传递这种形式2016-4-23
-    public void initCurrentDate(String date){
-        currentDate = date;
-        String[] array = currentDate.split("-");
-        year_c = Integer.parseInt(array[0]);
-        month_c = Integer.parseInt(array[1]);
-        day_c = Integer.parseInt(array[2]);
+    public void initCurrentDate(int curYear,int curMonth,int curDay,HashMap<String,List<String>> sign){
+        year_c = curYear;
+        month_c = curMonth;
+        day_c = curDay;
+        map = sign;
 
         gestureDetector = new GestureDetector(getContext(), new MyGestureListener());
-        calV = new CalendarAdapter(getContext(), getResources(), jumpMonth, jumpYear, year_c, month_c, day_c);
+        List<String> signDays = null;
+        if(map!= null){
+            signDays = map.get(String.valueOf(curMonth));
+        }
+        calV = new CalendarAdapter(getContext(), jumpMonth, year_c, month_c, day_c,signDays);
         addGridView();
         gridView.setAdapter(calV);
         flipper.addView(gridView, 0);
@@ -77,14 +77,13 @@ public class CalendarViewFlipper extends FrameLayout implements View.OnClickList
     private class MyGestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            int gvFlag = 0; // 每次添加gridview到viewflipper中时给的标记
             if (e1.getX() - e2.getX() > 120) {
                 // 像左滑动
-                enterNextMonth(gvFlag);
+                enterNextMonth();
                 return true;
             } else if (e1.getX() - e2.getX() < -120) {
                 // 向右滑动
-                enterPrevMonth(gvFlag);
+                enterPrevMonth();
                 return true;
             }
             return false;
@@ -93,18 +92,18 @@ public class CalendarViewFlipper extends FrameLayout implements View.OnClickList
 
     /**
      * 移动到下一个月
-     *
-     * @param gvFlag
      */
-    private void enterNextMonth(int gvFlag) {
+    private void enterNextMonth() {
         addGridView(); // 添加一个gridView
         jumpMonth++; // 下一个月
-
-        calV = new CalendarAdapter(getContext(), getResources(), jumpMonth, jumpYear, year_c, month_c, day_c);
+        List<String> signDays = null;
+        if(map!= null){
+            signDays = map.get(String.valueOf(month_c+jumpMonth));
+        }
+        calV = new CalendarAdapter(getContext(),jumpMonth, year_c, month_c, day_c,signDays);
         gridView.setAdapter(calV);
         addTextToTopTextView(currentMonth); // 移动到下一月后，将当月显示在头标题中
-        gvFlag++;
-        flipper.addView(gridView, gvFlag);
+        flipper.addView(gridView, 1);
         flipper.setInAnimation(AnimationUtils.loadAnimation(getContext(), R.anim.push_left_in));
         flipper.setOutAnimation(AnimationUtils.loadAnimation(getContext(), R.anim.push_left_out));
         flipper.showNext();
@@ -113,18 +112,18 @@ public class CalendarViewFlipper extends FrameLayout implements View.OnClickList
 
     /**
      * 移动到上一个月
-     *
-     * @param gvFlag
      */
-    private void enterPrevMonth(int gvFlag) {
+    private void enterPrevMonth() {
         addGridView(); // 添加一个gridView
         jumpMonth--; // 上一个月
-
-        calV = new CalendarAdapter(getContext(), getResources(), jumpMonth, jumpYear, year_c, month_c, day_c);
+        List<String> signDays = null;
+        if(map!= null){
+            signDays = map.get(String.valueOf(month_c+jumpMonth));
+        }
+        calV = new CalendarAdapter(getContext(),jumpMonth, year_c, month_c, day_c,signDays);
         gridView.setAdapter(calV);
-        gvFlag++;
         addTextToTopTextView(currentMonth); // 移动到上一月后，将当月显示在头标题中
-        flipper.addView(gridView, gvFlag);
+        flipper.addView(gridView, 1);
 
         flipper.setInAnimation(AnimationUtils.loadAnimation(getContext(), R.anim.push_right_in));
         flipper.setOutAnimation(AnimationUtils.loadAnimation(getContext(), R.anim.push_right_out));
@@ -205,15 +204,12 @@ public class CalendarViewFlipper extends FrameLayout implements View.OnClickList
 
     @Override
     public void onClick(View v) {
-        // TODO Auto-generated method stub
         switch (v.getId()) {
             case R.id.nextMonth: // 下一个月
-                enterNextMonth(gvFlag);
+                enterNextMonth();
                 break;
             case R.id.prevMonth: // 上一个月
-                enterPrevMonth(gvFlag);
-                break;
-            default:
+                enterPrevMonth();
                 break;
         }
     }
